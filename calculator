@@ -1,0 +1,273 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.Stack;
+
+public class AnimatedScientificCalculator extends JFrame implements ActionListener {
+    private JTextField display;
+    private StringBuilder currentInput = new StringBuilder();
+    private boolean resetDisplay = false;
+
+    public AnimatedScientificCalculator() {
+        setTitle("Animated Scientific Calculator");
+        setSize(420, 540);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+        setLayout(new BorderLayout());
+
+        // Display setup
+        display = new JTextField("0");
+        display.setEditable(false);
+        display.setHorizontalAlignment(JTextField.RIGHT);
+        display.setFont(new Font("Consolas", Font.BOLD, 28));
+        display.setBackground(new Color(30, 30, 30));
+        display.setForeground(Color.WHITE);
+        display.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        add(display, BorderLayout.NORTH);
+
+        // Button panel
+        JPanel panel = new JPanel(new GridLayout(6, 4, 8, 8));
+        panel.setBackground(new Color(40, 40, 40));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        String[] buttons = {
+            "sin", "cos", "tan", "C",
+            "7", "8", "9", "/",
+            "4", "5", "6", "*",
+            "1", "2", "3", "-",
+            "0", ".", "^", "+",
+            "(", ")", "CE", "="
+        };
+
+        for (String text : buttons) {
+            JButton btn = createStyledButton(text);
+            btn.addActionListener(this);
+            panel.add(btn);
+        }
+
+        add(panel, BorderLayout.CENTER);
+        setVisible(true);
+    }
+
+    // Create a JButton with styling and hover animation
+    private JButton createStyledButton(String text) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("Consolas", Font.BOLD, 20));
+        button.setFocusPainted(false);
+        button.setForeground(Color.WHITE);
+
+        // Different colors for operators and functions
+        if ("+-*/^=CCE()".contains(text)) {
+            button.setBackground(new Color(70, 130, 180)); // steel blue for operators
+        } else if ("sincos tan".contains(text)) {
+            button.setBackground(new Color(72, 61, 139)); // dark slate blue for scientific functions
+        } else {
+            button.setBackground(new Color(60, 60, 60)); // dark gray for numbers
+        }
+
+        button.setOpaque(true);
+        button.setBorder(BorderFactory.createLineBorder(new Color(80, 80, 80), 1));
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        // Hover effect using MouseListener
+        button.addMouseListener(new MouseAdapter() {
+            Color original = button.getBackground();
+
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                // Lighten the button color smoothly
+                button.setBackground(original.brighter());
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                button.setBackground(original);
+            }
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                // Darken the button when pressed
+                button.setBackground(original.darker());
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                button.setBackground(original.brighter());
+            }
+        });
+
+        return button;
+    }
+
+    public void actionPerformed(ActionEvent e) {
+        String cmd = e.getActionCommand();
+
+        switch (cmd) {
+            case "C": // Clear all
+                currentInput.setLength(0);
+                display.setText("0");
+                break;
+            case "CE": // Clear last entry
+                if (currentInput.length() > 0) {
+                    currentInput.setLength(currentInput.length() - 1);
+                    display.setText(currentInput.length() == 0 ? "0" : currentInput.toString());
+                }
+                break;
+            case "=": // Evaluate expression
+                try {
+                    String expr = currentInput.toString();
+                    double result = evaluate(expr);
+                    display.setText(Double.toString(result));
+                    currentInput.setLength(0);
+                    currentInput.append(result);
+                    resetDisplay = true;
+                } catch (Exception ex) {
+                    display.setText("Error");
+                    currentInput.setLength(0);
+                }
+                break;
+            case "sin":
+            case "cos":
+            case "tan":
+                try {
+                    double val = Double.parseDouble(display.getText());
+                    double radians = Math.toRadians(val);
+                    double res = 0;
+                    switch (cmd) {
+                        case "sin":
+                            res = Math.sin(radians);
+                            break;
+                        case "cos":
+                            res = Math.cos(radians);
+                            break;
+                        case "tan":
+                            res = Math.tan(radians);
+                            break;
+                    }
+                    display.setText(Double.toString(res));
+                    currentInput.setLength(0);
+                    currentInput.append(res);
+                    resetDisplay = true;
+                } catch (NumberFormatException ex) {
+                    display.setText("Error");
+                    currentInput.setLength(0);
+                }
+                break;
+            default: // Numbers, operators, parentheses, decimal
+                if (resetDisplay) {
+                    currentInput.setLength(0);
+                    resetDisplay = false;
+                }
+                currentInput.append(cmd);
+                display.setText(currentInput.toString());
+                break;
+        }
+    }
+
+    // Expression evaluation methods same as before
+    private double evaluate(String expression) throws Exception {
+        expression = expression.replaceAll(" ", "");
+        String postfix = infixToPostfix(expression);
+        return evaluatePostfix(postfix);
+    }
+
+    private String infixToPostfix(String expr) throws Exception {
+        StringBuilder output = new StringBuilder();
+        Stack<Character> stack = new Stack<>();
+
+        int i = 0;
+        while (i < expr.length()) {
+            char ch = expr.charAt(i);
+
+            if (Character.isDigit(ch) || ch == '.') {
+                while (i < expr.length() && (Character.isDigit(expr.charAt(i)) || expr.charAt(i) == '.')) {
+                    output.append(expr.charAt(i));
+                    i++;
+                }
+                output.append(' ');
+                continue;
+            } else if (ch == '(') {
+                stack.push(ch);
+            } else if (ch == ')') {
+                while (!stack.isEmpty() && stack.peek() != '(') {
+                    output.append(stack.pop()).append(' ');
+                }
+                if (stack.isEmpty()) throw new Exception("Mismatched parentheses");
+                stack.pop();
+            } else if (isOperator(ch)) {
+                while (!stack.isEmpty() && precedence(stack.peek()) >= precedence(ch)) {
+                    output.append(stack.pop()).append(' ');
+                }
+                stack.push(ch);
+            } else {
+                throw new Exception("Invalid character: " + ch);
+            }
+            i++;
+        }
+        while (!stack.isEmpty()) {
+            if (stack.peek() == '(') throw new Exception("Mismatched parentheses");
+            output.append(stack.pop()).append(' ');
+        }
+        return output.toString();
+    }
+
+    private boolean isOperator(char c) {
+        return c == '+' || c == '-' || c == '*' || c == '/' || c == '^';
+    }
+
+    private int precedence(char op) {
+        switch (op) {
+            case '+':
+            case '-': return 1;
+            case '*':
+            case '/': return 2;
+            case '^': return 3;
+        }
+        return -1;
+    }
+
+    private double evaluatePostfix(String postfix) throws Exception {
+        Stack<Double> stack = new Stack<>();
+        String[] tokens = postfix.split("\\s+");
+
+        for (String token : tokens) {
+            if (token.isEmpty()) continue;
+            if (isNumeric(token)) {
+                stack.push(Double.parseDouble(token));
+            } else if (token.length() == 1 && isOperator(token.charAt(0))) {
+                if (stack.size() < 2) throw new Exception("Invalid expression");
+                double b = stack.pop();
+                double a = stack.pop();
+                double res = 0;
+                switch (token.charAt(0)) {
+                    case '+': res = a + b; break;
+                    case '-': res = a - b; break;
+                    case '*': res = a * b; break;
+                    case '/': 
+                        if (b == 0) throw new Exception("Division by zero");
+                        res = a / b; 
+                        break;
+                    case '^': res = Math.pow(a, b); break;
+                }
+                stack.push(res);
+            } else {
+                throw new Exception("Invalid token: " + token);
+            }
+        }
+        if (stack.size() != 1) throw new Exception("Invalid expression");
+        return stack.pop();
+    }
+
+    private boolean isNumeric(String s) {
+        try {
+            Double.parseDouble(s);
+            return true;
+        } catch (NumberFormatException ex) {
+            return false;
+        }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> new AnimatedScientificCalculator());
+    }
+}
